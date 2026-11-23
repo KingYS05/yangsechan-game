@@ -1,0 +1,2328 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>양세찬 게임 3D — 1인칭 온라인 & 로컬</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <style>
+    :root {
+      --bg-cream: #FFFBF2;
+      --ink: #1E1B2E;
+      --p1: #FF5E6C;
+      --p1-soft: #FFE4E7;
+      --p2: #20B2AA;
+      --p2-soft: #DFF7F5;
+      --gold: #FFB703;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif;
+      background-color: var(--bg-cream);
+      background-image:
+        radial-gradient(circle at 12% 18%, rgba(255, 183, 3, 0.14) 0%, transparent 32%),
+        radial-gradient(circle at 88% 15%, rgba(32, 178, 170, 0.14) 0%, transparent 34%),
+        radial-gradient(circle at 50% 92%, rgba(255, 94, 108, 0.12) 0%, transparent 38%);
+      color: var(--ink);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .card-pop {
+      background: #FFFFFF;
+      border: 2.5px solid #1E1B2E;
+      box-shadow: 4px 4px 0px #1E1B2E;
+      border-radius: 20px;
+    }
+
+    .card-pop-sm {
+      background: #FFFFFF;
+      border: 2px solid #1E1B2E;
+      box-shadow: 3px 3px 0px #1E1B2E;
+      border-radius: 14px;
+    }
+
+    .btn-pop {
+      border: 2.5px solid #1E1B2E;
+      box-shadow: 3px 3px 0px #1E1B2E;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+    }
+
+    .btn-pop:hover:not(:disabled) {
+      transform: translate(-1px, -1px);
+      box-shadow: 4px 4px 0px #1E1B2E;
+    }
+
+    .btn-pop:active:not(:disabled) {
+      transform: translate(2px, 2px);
+      box-shadow: 1px 1px 0px #1E1B2E;
+    }
+
+    .btn-pop:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    @keyframes floatCard {
+      0%, 100% { transform: translateY(0px) rotate(-1deg); }
+      50% { transform: translateY(-6px) rotate(1deg); }
+    }
+
+    .headband-float {
+      animation: floatCard 3s ease-in-out infinite;
+    }
+
+    .headband-band {
+      height: 10px;
+      border-radius: 999px;
+      border: 2px solid #1E1B2E;
+    }
+
+    .word-card-secret {
+      background: repeating-linear-gradient(
+        -45deg,
+        #2D2847,
+        #2D2847 10px,
+        #39335A 10px,
+        #39335A 20px
+      );
+      color: #FFD166;
+    }
+
+    .toast-enter {
+      animation: toastSlide 0.25s ease forwards;
+    }
+
+    @keyframes toastSlide {
+      from { opacity: 0; transform: translate(-50%, 12px); }
+      to { opacity: 1; transform: translate(-50%, 0); }
+    }
+
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: rgba(30, 27, 46, 0.25);
+      border-radius: 999px;
+    }
+
+    #three-stage canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: grab;
+    }
+    #three-stage canvas:active {
+      cursor: grabbing;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-amber-200">
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-max max-w-[92vw]"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-30 bg-[#FFFBF2]/90 backdrop-blur-md border-b-2 border-[#1E1B2E]">
+    <div class="max-w-5xl mx-auto px-3 sm:px-5 h-14 flex items-center justify-between gap-2">
+      <button id="btn-logo-home" type="button" class="flex items-center gap-2 font-black text-base sm:text-lg tracking-tight hover:opacity-80 transition">
+        <span class="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[#FFB703] border-2 border-[#1E1B2E] text-lg shadow-[2px_2px_0px_#1E1B2E]">👑</span>
+        <span>양세찬 게임 3D</span>
+      </button>
+
+      <div class="flex items-center gap-1.5 sm:gap-2">
+        <button id="btn-rules" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 border-2 border-[#1E1B2E] text-xs sm:text-sm font-bold transition">
+          📖 규칙
+        </button>
+        <button id="btn-mute" type="button" class="w-9 h-9 rounded-xl bg-white hover:bg-slate-100 border-2 border-[#1E1B2E] flex items-center justify-center text-base transition" title="효과음 켜기/끄기" aria-label="효과음 켜기/끄기">
+          🔊
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main App Container -->
+  <main id="app-root" class="max-w-5xl mx-auto px-3 sm:px-5 py-4 sm:py-6"></main>
+
+  <!-- Generic Modal Container -->
+  <div id="modal-root" class="hidden fixed inset-0 z-50 bg-[#1E1B2E]/60 backdrop-blur-sm flex items-center justify-center p-4"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      // ==========================================
+      // 1. CATEGORIES & WORD BANK
+      // ==========================================
+      const CATEGORIES = {
+        food: {
+          id: 'food',
+          name: '음식',
+          emoji: '🍔',
+          desc: '한식·중식·간식·디저트',
+          color: 'bg-orange-100',
+          words: [
+            '김치찌개', '떡볶이', '삼겹살', '짜장면', '치킨', '초밥', '마라탕', '비빔밥',
+            '라면', '피자', '탕수육', '냉면', '붕어빵', '팥빙수', '크루아상', '파스타',
+            '감자탕', '족발', '햄버거', '돈까스', '호떡', '순대국밥', '타코야끼', '와플',
+            '김밥', '부대찌개', '칼국수', '샌드위치', '마카롱', '닭갈비'
+          ]
+        },
+        animal: {
+          id: 'animal',
+          name: '동물',
+          emoji: '🐾',
+          desc: '귀여운 동물부터 맹수까지',
+          color: 'bg-emerald-100',
+          words: [
+            '기린', '펭귄', '코끼리', '카피바라', '판다', '나무늘보', '돌고래', '캥거루',
+            '치타', '부엉이', '문어', '고슴도치', '미어캣', '하마', '플라밍고', '햄스터',
+            '수달', '앵무새', '사막여우', '북극곰', '코알라', '호랑이', '카멜레온', '알파카',
+            '해파리', '다람쥐', '공작새', '너구리', '바다표범', '두더지'
+          ]
+        },
+        job: {
+          id: 'job',
+          name: '직업',
+          emoji: '💼',
+          desc: '다양한 직업과 전문가',
+          color: 'bg-sky-100',
+          words: [
+            '소방관', '우주비행사', '요리사', '의사', '프로게이머', '파일럿', '웹툰작가', '유튜버',
+            '마술사', '고고학자', '수의사', '탐정', '바리스타', '영화감독', '변호사', '건축가',
+            '경찰관', '성우', '아나운서', '프로파일러', '기상캐스터', '조향사', '치과의사', '승무원',
+            '작곡가', '사진작가', '태권도 사범', '도서관 사서', '제빵사', '운동선수'
+          ]
+        },
+        character: {
+          id: 'character',
+          name: '인물·캐릭터',
+          emoji: '🌟',
+          desc: '유명인·역사·애니 캐릭터',
+          color: 'bg-pink-100',
+          words: [
+            '유재석', '손흥민', '아이유', '피카츄', '도라에몽', '스파이더맨', '짱구', '세종대왕',
+            '이순신', '아인슈타인', '엘사', '뽀로로', '해리포터', '아이언맨', '백종원', '페이커',
+            '셜록 홈즈', '루피', '명탐정 코난', '춘식이', '마이멜로디', '배트맨', '슈퍼마리오', '미키마우스',
+            '김연아', '모차르트', '스폰지밥', '푸바오', '양세찬', '강호동'
+          ]
+        },
+        object: {
+          id: 'object',
+          name: '사물·일상',
+          emoji: '🏠',
+          desc: '우리 주변의 물건들',
+          color: 'bg-violet-100',
+          words: [
+            '스마트폰', '칫솔', '우산', '에어컨', '선풍기', '무선이어폰', '엘리베이터', '냉장고',
+            '거울', '알람시계', '텀블러', '헤어드라이기', '리모컨', '캐리어', '자전거', '카메라',
+            '노트북', '가위', '백팩', '침대', '전자레인지', '청소기', '안경', '손톱깎이',
+            '전기장판', '지갑', '열쇠', '보조배터리', '운동화', '우체통'
+          ]
+        },
+        place: {
+          id: 'place',
+          name: '나라·여행지',
+          emoji: '✈️',
+          desc: '세계 각국과 명소',
+          color: 'bg-amber-100',
+          words: [
+            '일본', '프랑스', '미국', '제주도', '이탈리아', '스위스', '태국', '호주',
+            '이집트', '영국', '캐나다', '하와이', '브라질', '스페인', '그리스', '베트남',
+            '아이슬란드', '튀르키예', '뉴욕', '파리', '에버랜드', '경주', '부산', '남극',
+            '사하라 사막', '독일', '멕시코', '싱가포르', '인도', '에베레스트'
+          ]
+        },
+        media: {
+          id: 'media',
+          name: '영화·예능',
+          emoji: '🎬',
+          desc: '인기 작품과 프로그램',
+          color: 'bg-rose-100',
+          words: [
+            '기생충', '오징어 게임', '겨울왕국', '어벤져스', '해리포터', '슬기로운 의사생활',
+            '런닝맨', '무한도전', '범죄도시', '서울의 봄', '인사이드 아웃', '토이 스토리',
+            '타이타닉', '센과 치히로의 행방불명', '신서유기', '나 혼자 산다', '주토피아',
+            '알라딘', '인터스텔라', '극한직업', '스즈메의 문단속', '더 글로리', '환승연애', '지구오락실'
+          ]
+        },
+        custom: {
+          id: 'custom',
+          name: '직접 만들기',
+          emoji: '✏️',
+          desc: '우리만의 주제와 단어!',
+          color: 'bg-yellow-100',
+          words: []
+        }
+      };
+
+      const AVATARS = ['🐶', '🐱', '🐻', '🐰', '🦊', '🐼', '🐥', '🐧', '🦁', '🐸'];
+
+      const QUICK_CHAT_CHIPS = [
+        { label: '⭕ 예', text: '예!' },
+        { label: '❌ 아니오', text: '아니오!' },
+        { label: '🔺 애매해요', text: '애매해요!' },
+        { label: '먹을 수 있어?', text: '먹을 수 있는 건가요?' },
+        { label: '살아있어?', text: '살아있는 건가요?' },
+        { label: '사람이야?', text: '사람인가요?' }
+      ];
+
+      // ==========================================
+      // 2. SOUND ENGINE (Web Audio API)
+      // ==========================================
+      const Sound = {
+        ctx: null,
+        muted: false,
+        ensureCtx() {
+          if (this.muted) return null;
+          if (!this.ctx) {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (AudioCtx) this.ctx = new AudioCtx();
+          }
+          if (this.ctx && this.ctx.state === 'suspended') {
+            this.ctx.resume().catch(() => {});
+          }
+          return this.ctx;
+        },
+        tone(freq, duration = 0.12, type = 'sine', vol = 0.12, delay = 0) {
+          const ctx = this.ensureCtx();
+          if (!ctx) return;
+          const now = ctx.currentTime + delay;
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, now);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(vol, now + 0.015);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + duration + 0.02);
+        },
+        click() { this.tone(520, 0.07, 'triangle', 0.08); },
+        chat() {
+          this.tone(587.33, 0.08, 'sine', 0.1, 0);
+          this.tone(783.99, 0.1, 'sine', 0.09, 0.05);
+        },
+        flip() {
+          this.tone(392, 0.08, 'sine', 0.1, 0);
+          this.tone(587, 0.12, 'sine', 0.1, 0.06);
+        },
+        wrong() {
+          this.tone(220, 0.18, 'sawtooth', 0.1, 0);
+          this.tone(185, 0.28, 'sawtooth', 0.1, 0.15);
+        },
+        win() {
+          const notes = [523.25, 659.25, 783.99, 1046.5];
+          notes.forEach((n, i) => this.tone(n, 0.22, 'triangle', 0.14, i * 0.09));
+        },
+        tick() {
+          this.tone(880, 0.04, 'square', 0.03);
+        }
+      };
+
+      // ==========================================
+      // 3. APPLICATION STATE
+      // ==========================================
+      const state = {
+        playMode: 'online', // 'online' | 'local'
+        screen: 'setup', // 'setup' | 'lobby' | 'handoff' | 'play' | 'result'
+        selectedCategory: 'food',
+        customTopicName: '우리 반 친구들',
+        customWordsText: '민수, 지민, 서연, 현우, 예린, 도윤',
+        timerSetting: 0,
+        handoffEnabled: true,
+        autoSwitchOnSend: true,
+        players: [
+          { id: 0, name: '나', avatar: '🐶', shirtColor: 0xFF5E6C, bandColor: 0xFF5E6C, word: '', score: 0, wrongGuesses: [] },
+          { id: 1, name: '친구', avatar: '🐱', shirtColor: 0x20B2AA, bandColor: 0x20B2AA, word: '', score: 0, wrongGuesses: [] }
+        ],
+        usedWords: [],
+        currentTurn: 0,
+        turnCount: 1,
+        roundNumber: 1,
+        chatMessages: [],
+        chatDraft: '',
+        chatMode: 'chat', // 'chat' | 'guess'
+        winner: null,
+        timerRemaining: 0,
+        timerPaused: false,
+        timerId: null,
+        // Online P2P state
+        online: {
+          role: null, // 'host' | 'guest'
+          myIdx: 0, // 0 for host, 1 for guest
+          roomCode: '',
+          joinCodeInput: '',
+          status: 'idle', // 'idle' | 'creating' | 'waiting' | 'joining' | 'connected' | 'error'
+          statusMsg: '',
+          peerConnected: false,
+          categoryDisplay: { name: '음식', emoji: '🍔' },
+          waitingJudge: false
+        }
+      };
+
+      // Check URL ?room=XXXX parameter for direct invite links
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const urlRoom = params.get('room');
+        if (urlRoom) {
+          state.playMode = 'online';
+          state.online.joinCodeInput = urlRoom.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+        }
+      } catch (_) {}
+
+      try {
+        const saved = localStorage.getItem('yangsechan_prefs_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.p1Name) state.players[0].name = parsed.p1Name;
+          if (parsed.p2Name) state.players[1].name = parsed.p2Name;
+          if (parsed.p1Avatar) state.players[0].avatar = parsed.p1Avatar;
+          if (parsed.p2Avatar) state.players[1].avatar = parsed.p2Avatar;
+        }
+      } catch (_) {}
+
+      function savePrefs() {
+        try {
+          localStorage.setItem('yangsechan_prefs_v1', JSON.stringify({
+            p1Name: state.players[0].name,
+            p2Name: state.players[1].name,
+            p1Avatar: state.players[0].avatar,
+            p2Avatar: state.players[1].avatar
+          }));
+        } catch (_) {}
+      }
+
+      // ==========================================
+      // 4. PEERJS 1:1 ONLINE ENGINE
+      // ==========================================
+      const PEER_PREFIX = 'ysc3d-room-';
+      const Net = {
+        peer: null,
+        conn: null,
+
+        cleanup() {
+          if (this.conn) {
+            try { this.conn.close(); } catch (_) {}
+            this.conn = null;
+          }
+          if (this.peer) {
+            try { this.peer.destroy(); } catch (_) {}
+            this.peer = null;
+          }
+          state.online.role = null;
+          state.online.roomCode = '';
+          state.online.status = 'idle';
+          state.online.statusMsg = '';
+          state.online.peerConnected = false;
+          state.online.waitingJudge = false;
+        },
+
+        generateCode() {
+          const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+          let code = '';
+          for (let i = 0; i < 4; i++) {
+            code += chars[Math.floor(Math.random() * chars.length)];
+          }
+          return code;
+        },
+
+        send(payload) {
+          if (this.conn && this.conn.open) {
+            try {
+              this.conn.send(payload);
+              return true;
+            } catch (_) {
+              return false;
+            }
+          }
+          return false;
+        },
+
+        createRoom() {
+          if (typeof Peer === 'undefined') {
+            showToast('PeerJS 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인해주세요.', 'error');
+            return;
+          }
+          this.cleanup();
+          const code = this.generateCode();
+          state.online.role = 'host';
+          state.online.myIdx = 0;
+          state.online.roomCode = code;
+          state.online.status = 'creating';
+          state.online.statusMsg = '온라인 방을 생성하는 중...';
+          state.screen = 'lobby';
+          savePrefs();
+          render();
+
+          try {
+            const peer = new Peer(PEER_PREFIX + code, { debug: 0 });
+            this.peer = peer;
+
+            peer.on('open', () => {
+              state.online.status = 'waiting';
+              state.online.statusMsg = '친구가 방 코드를 입력할 때까지 기다리는 중...';
+              Sound.flip();
+              render();
+            });
+
+            peer.on('connection', (conn) => {
+              if (this.conn && this.conn.open) {
+                conn.on('open', () => {
+                  conn.send({ type: 'room_full' });
+                  setTimeout(() => conn.close(), 200);
+                });
+                return;
+              }
+              this.attachConnection(conn);
+            });
+
+            peer.on('error', (err) => {
+              state.online.status = 'error';
+              if (err && err.type === 'unavailable-id') {
+                state.online.statusMsg = '방 코드가 중복되었어요. 다시 방 만들기를 눌러주세요.';
+              } else {
+                state.online.statusMsg = '온라인 서버 연결에 실패했어요. (HTML 파일을 Netlify Drop 등에 올려 접속하거나 로컬 모드를 이용해보세요.)';
+              }
+              render();
+            });
+          } catch (_) {
+            state.online.status = 'error';
+            state.online.statusMsg = '온라인 연결을 초기화할 수 없어요.';
+            render();
+          }
+        },
+
+        joinRoom(rawCode) {
+          if (typeof Peer === 'undefined') {
+            showToast('PeerJS 라이브러리를 불러오지 못했어요.', 'error');
+            return;
+          }
+          const code = String(rawCode || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+          if (code.length < 4) {
+            showToast('4자리 방 코드를 입력해주세요!', 'warn');
+            return;
+          }
+          this.cleanup();
+          state.online.role = 'guest';
+          state.online.myIdx = 1;
+          state.online.roomCode = code;
+          state.online.status = 'joining';
+          state.online.statusMsg = `방 [${code}]에 연결하는 중...`;
+          state.screen = 'lobby';
+          savePrefs();
+          render();
+
+          try {
+            const peer = new Peer({ debug: 0 });
+            this.peer = peer;
+
+            peer.on('open', () => {
+              const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+              this.attachConnection(conn);
+            });
+
+            peer.on('error', (err) => {
+              state.online.status = 'error';
+              if (err && err.type === 'peer-unavailable') {
+                state.online.statusMsg = `방 [${code}]을(를) 찾을 수 없어요. 방 코드를 다시 확인해주세요.`;
+              } else {
+                state.online.statusMsg = '연결에 실패했어요. 방장이 방을 열어두었는지 확인해주세요.';
+              }
+              render();
+            });
+          } catch (_) {
+            state.online.status = 'error';
+            state.online.statusMsg = '연결을 시작할 수 없어요.';
+            render();
+          }
+        },
+
+        attachConnection(conn) {
+          this.conn = conn;
+          conn.on('open', () => {
+            state.online.peerConnected = true;
+            state.online.status = 'connected';
+            state.online.statusMsg = '친구와 실시간 1:1 연결 완료!';
+            Sound.win();
+
+            const me = state.players[state.online.myIdx];
+            this.send({
+              type: 'hello',
+              name: me.name,
+              avatar: me.avatar
+            });
+            render();
+          });
+
+          conn.on('data', (msg) => {
+            this.handleMessage(msg);
+          });
+
+          conn.on('close', () => {
+            state.online.peerConnected = false;
+            showToast('친구와의 연결이 끊어졌어요.', 'error');
+            if (state.screen === 'play' || state.screen === 'result') {
+              renderPlayHUDAndChat();
+            } else {
+              state.online.status = 'error';
+              state.online.statusMsg = '친구와의 연결이 종료되었어요.';
+              render();
+            }
+          });
+        },
+
+        handleMessage(msg) {
+          if (!msg || typeof msg !== 'object') return;
+          const oppIdx = 1 - state.online.myIdx;
+
+          if (msg.type === 'room_full') {
+            state.online.status = 'error';
+            state.online.statusMsg = '이미 2명이 접속 중인 방이에요.';
+            render();
+            return;
+          }
+
+          if (msg.type === 'hello') {
+            state.players[oppIdx].name = msg.name || (oppIdx === 0 ? '방장' : '친구');
+            state.players[oppIdx].avatar = msg.avatar || (oppIdx === 0 ? '🐶' : '🐱');
+            showToast(`${state.players[oppIdx].name}님이 입장했어요!`, 'success');
+            if (state.screen === 'lobby') render();
+            return;
+          }
+
+          if (msg.type === 'round_start') {
+            state.roundNumber = msg.roundNumber;
+            state.turnCount = 1;
+            state.currentTurn = msg.firstTurn;
+            state.timerSetting = msg.timerSetting || 0;
+            state.online.categoryDisplay = msg.categoryDisplay;
+            state.players[0].word = msg.words[0];
+            state.players[1].word = msg.words[1];
+            state.players[0].score = msg.scores[0];
+            state.players[1].score = msg.scores[1];
+            state.players[0].wrongGuesses = [];
+            state.players[1].wrongGuesses = [];
+            state.winner = null;
+            state.chatDraft = '';
+            state.chatMode = 'chat';
+            state.online.waitingJudge = false;
+            state.chatMessages = [
+              {
+                id: Date.now(),
+                senderIdx: -1,
+                type: 'system',
+                text: `라운드 ${state.roundNumber} 시작! 주제 [${msg.categoryDisplay.emoji} ${msg.categoryDisplay.name}] · 서로 이마 위 단어를 보며 채팅해보세요.`,
+                time: getTimeStr()
+              }
+            ];
+            state.screen = 'play';
+            Sound.flip();
+            startTurnTimer();
+            render();
+            return;
+          }
+
+          if (msg.type === 'chat') {
+            state.chatMessages.push({
+              id: Date.now() + Math.random(),
+              senderIdx: msg.senderIdx,
+              type: 'chat',
+              text: msg.text,
+              time: msg.time || getTimeStr()
+            });
+            Sound.chat();
+            if (/^(예|응|맞아|네|ㅇㅇ|⭕)/.test(msg.text)) ThreeStage.triggerReaction('nod');
+            else if (/^(아니|아냐|노|ㄴㄴ|땡|❌)/.test(msg.text)) ThreeStage.triggerReaction('shake');
+            else if (msg.text.includes('?') || msg.text.includes('애매')) ThreeStage.triggerReaction('tilt');
+            state.turnCount += 1;
+            renderPlayHUDAndChat();
+            return;
+          }
+
+          if (msg.type === 'judge_request') {
+            const guesser = state.players[msg.guesserIdx];
+            const me = state.players[state.online.myIdx];
+            openJudgeModal(guesser, me, msg.guess, true);
+            return;
+          }
+
+          if (msg.type === 'guess_wrong') {
+            state.online.waitingJudge = false;
+            const guesser = state.players[msg.guesserIdx];
+            guesser.wrongGuesses.push(msg.guess);
+            state.chatMessages.push({
+              id: Date.now(),
+              senderIdx: msg.guesserIdx,
+              type: 'guess_wrong',
+              text: `🎯 정답 도전: "${msg.guess}" → 오답!`,
+              time: getTimeStr()
+            });
+            Sound.wrong();
+            showToast(`땡! "${msg.guess}"은(는) 오답이에요.`, 'error');
+            renderPlayHUDAndChat();
+            return;
+          }
+
+          if (msg.type === 'win') {
+            state.online.waitingJudge = false;
+            triggerVictory(msg.winnerIdx, false);
+          }
+        }
+      };
+
+      // ==========================================
+      // 5. 3D FIRST-PERSON STAGE (Three.js)
+      // ==========================================
+      const ThreeStage = {
+        renderer: null,
+        scene: null,
+        camera: null,
+        rafId: null,
+        container: null,
+        resizeHandler: null,
+        oppGroup: null,
+        headGroup: null,
+        leftEye: null,
+        rightEye: null,
+        mouthMesh: null,
+        foreheadMat: null,
+        shirtMat: null,
+        bandMat: null,
+        clock: null,
+        lookYaw: 0,
+        lookPitch: 0,
+        targetYaw: 0,
+        targetPitch: 0,
+        isDragging: false,
+        lastX: 0,
+        lastY: 0,
+        reactionType: 'none',
+        reactionEnd: 0,
+
+        dispose() {
+          if (this.rafId) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+          }
+          if (this.resizeHandler) {
+            window.removeEventListener('resize', this.resizeHandler);
+            this.resizeHandler = null;
+          }
+          if (this.renderer) {
+            this.renderer.dispose();
+            this.renderer = null;
+          }
+          this.scene = null;
+          this.camera = null;
+          this.container = null;
+        },
+
+        createForeheadTexture(wordText, playerName, accentHex) {
+          const canvas = document.createElement('canvas');
+          canvas.width = 768;
+          canvas.height = 320;
+          const ctx = canvas.getContext('2d');
+
+          ctx.fillStyle = '#FFFDF5';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.strokeStyle = '#1E1B2E';
+          ctx.lineWidth = 22;
+          ctx.strokeRect(11, 11, canvas.width - 22, canvas.height - 22);
+
+          ctx.fillStyle = accentHex;
+          ctx.fillRect(22, 22, canvas.width - 44, 62);
+
+          ctx.fillStyle = '#FFFFFF';
+          ctx.font = '900 32px "Apple SD Gothic Neo", "Malgun Gothic", sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(`${playerName}의 이마 위 단어`, canvas.width / 2, 54);
+
+          ctx.fillStyle = '#1E1B2E';
+          let fontSize = 112;
+          const maxW = canvas.width - 80;
+          do {
+            ctx.font = `900 ${fontSize}px "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
+            if (ctx.measureText(wordText).width <= maxW) break;
+            fontSize -= 6;
+          } while (fontSize > 38);
+
+          ctx.fillText(wordText, canvas.width / 2, 198);
+
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.anisotropy = 4;
+          tex.needsUpdate = true;
+          return tex;
+        },
+
+        createTableTexture() {
+          const canvas = document.createElement('canvas');
+          canvas.width = 512;
+          canvas.height = 512;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#C98A55';
+          ctx.fillRect(0, 0, 512, 512);
+          ctx.strokeStyle = 'rgba(110, 62, 24, 0.18)';
+          ctx.lineWidth = 4;
+          for (let y = 0; y < 512; y += 22) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.bezierCurveTo(170, y + 8, 340, y - 8, 512, y);
+            ctx.stroke();
+          }
+          const tex = new THREE.CanvasTexture(canvas);
+          tex.wrapS = THREE.RepeatWrapping;
+          tex.wrapT = THREE.RepeatWrapping;
+          return tex;
+        },
+
+        mount(containerEl) {
+          this.dispose();
+          if (typeof THREE === 'undefined') return;
+
+          this.container = containerEl;
+          this.clock = new THREE.Clock();
+          this.lookYaw = 0;
+          this.lookPitch = 0;
+          this.targetYaw = 0;
+          this.targetPitch = 0;
+
+          const width = containerEl.clientWidth || 640;
+          const height = containerEl.clientHeight || 420;
+
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color(0xF6EAD7);
+          scene.fog = new THREE.Fog(0xF6EAD7, 6, 15);
+          this.scene = scene;
+
+          const camera = new THREE.PerspectiveCamera(52, width / height, 0.1, 30);
+          camera.position.set(0, 1.38, 1.48);
+          this.camera = camera;
+
+          const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+          renderer.setSize(width, height);
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+          containerEl.innerHTML = '';
+          containerEl.appendChild(renderer.domElement);
+          this.renderer = renderer;
+
+          const hemiLight = new THREE.HemisphereLight(0xFFFDF8, 0xD7BFA6, 0.95);
+          scene.add(hemiLight);
+
+          const keyLight = new THREE.DirectionalLight(0xFFF6E5, 0.9);
+          keyLight.position.set(2.5, 4.5, 3.2);
+          keyLight.castShadow = true;
+          keyLight.shadow.mapSize.width = 1024;
+          keyLight.shadow.mapSize.height = 1024;
+          scene.add(keyLight);
+
+          const fillLight = new THREE.DirectionalLight(0xDFF7F5, 0.35);
+          fillLight.position.set(-2.5, 2.2, 1.5);
+          scene.add(fillLight);
+
+          const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(18, 18),
+            new THREE.MeshStandardMaterial({ color: 0xEAD7BE, roughness: 0.9 })
+          );
+          floor.rotation.x = -Math.PI / 2;
+          floor.position.y = -0.85;
+          floor.receiveShadow = true;
+          scene.add(floor);
+
+          const backWall = new THREE.Mesh(
+            new THREE.PlaneGeometry(18, 10),
+            new THREE.MeshStandardMaterial({ color: 0xFFF5E6, roughness: 0.95 })
+          );
+          backWall.position.set(0, 2.5, -4.5);
+          scene.add(backWall);
+
+          const frame = new THREE.Mesh(
+            new THREE.BoxGeometry(1.4, 0.95, 0.06),
+            new THREE.MeshStandardMaterial({ color: 0x1E1B2E, roughness: 0.6 })
+          );
+          frame.position.set(-1.7, 1.9, -4.45);
+          scene.add(frame);
+          const art = new THREE.Mesh(
+            new THREE.PlaneGeometry(1.25, 0.8),
+            new THREE.MeshStandardMaterial({ color: 0xFFB703, roughness: 0.8 })
+          );
+          art.position.set(-1.7, 1.9, -4.41);
+          scene.add(art);
+
+          const tableTex = this.createTableTexture();
+          const tableMat = new THREE.MeshStandardMaterial({ map: tableTex, roughness: 0.72 });
+          const tableTop = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.1, 1.55), tableMat);
+          tableTop.position.set(0, 0.15, 0);
+          tableTop.castShadow = true;
+          tableTop.receiveShadow = true;
+          scene.add(tableTop);
+
+          const legMat = new THREE.MeshStandardMaterial({ color: 0x7A4B2A, roughness: 0.8 });
+          [[-1.05, -0.6], [1.05, -0.6], [-1.05, 0.6], [1.05, 0.6]].forEach(([lx, lz]) => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.045, 1.0, 12), legMat);
+            leg.position.set(lx, -0.35, lz);
+            scene.add(leg);
+          });
+
+          const mugGeo = new THREE.CylinderGeometry(0.065, 0.055, 0.11, 16);
+          const myMug = new THREE.Mesh(mugGeo, new THREE.MeshStandardMaterial({ color: 0xFF5E6C, roughness: 0.4 }));
+          myMug.position.set(0.55, 0.255, 0.42);
+          myMug.castShadow = true;
+          scene.add(myMug);
+
+          const oppMug = new THREE.Mesh(mugGeo, new THREE.MeshStandardMaterial({ color: 0x20B2AA, roughness: 0.4 }));
+          oppMug.position.set(-0.55, 0.255, -0.42);
+          oppMug.castShadow = true;
+          scene.add(oppMug);
+
+          const bellBase = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.085, 0.095, 0.025, 20),
+            new THREE.MeshStandardMaterial({ color: 0x1E1B2E, roughness: 0.5 })
+          );
+          bellBase.position.set(0, 0.212, 0);
+          scene.add(bellBase);
+          const bellDome = new THREE.Mesh(
+            new THREE.SphereGeometry(0.075, 20, 12, 0, Math.PI * 2, 0, Math.PI / 2),
+            new THREE.MeshStandardMaterial({ color: 0xFFB703, metalness: 0.45, roughness: 0.25 })
+          );
+          bellDome.position.set(0, 0.225, 0);
+          scene.add(bellDome);
+
+          const chairMat = new THREE.MeshStandardMaterial({ color: 0x8D5B38, roughness: 0.8 });
+          const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.65), chairMat);
+          chairSeat.position.set(0, -0.15, -1.25);
+          scene.add(chairSeat);
+          const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.95, 0.08), chairMat);
+          chairBack.position.set(0, 0.35, -1.55);
+          scene.add(chairBack);
+
+          const oppGroup = new THREE.Group();
+          oppGroup.position.set(0, 0.15, -1.18);
+          scene.add(oppGroup);
+          this.oppGroup = oppGroup;
+
+          this.shirtMat = new THREE.MeshStandardMaterial({ color: 0x20B2AA, roughness: 0.7 });
+          const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.34, 0.72, 20), this.shirtMat);
+          torso.position.set(0, 0.26, 0);
+          torso.castShadow = true;
+          oppGroup.add(torso);
+
+          const collar = new THREE.Mesh(
+            new THREE.TorusGeometry(0.16, 0.035, 10, 20),
+            new THREE.MeshStandardMaterial({ color: 0xFFFFFF, roughness: 0.6 })
+          );
+          collar.rotation.x = Math.PI / 2;
+          collar.position.set(0, 0.61, 0);
+          oppGroup.add(collar);
+
+          const armGeo = new THREE.CylinderGeometry(0.075, 0.068, 0.58, 12);
+          const skinMat = new THREE.MeshStandardMaterial({ color: 0xFFE0C8, roughness: 0.75 });
+          [-0.33, 0.33].forEach((ax) => {
+            const arm = new THREE.Mesh(armGeo, this.shirtMat);
+            arm.position.set(ax, 0.22, 0.22);
+            arm.rotation.x = Math.PI / 2.6;
+            arm.rotation.z = ax < 0 ? 0.18 : -0.18;
+            arm.castShadow = true;
+            oppGroup.add(arm);
+
+            const hand = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 14), skinMat);
+            hand.position.set(ax * 0.85, 0.08, 0.46);
+            oppGroup.add(hand);
+          });
+
+          const headGroup = new THREE.Group();
+          headGroup.position.set(0, 0.94, 0.02);
+          oppGroup.add(headGroup);
+          this.headGroup = headGroup;
+
+          const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.35, 28, 24), skinMat);
+          headMesh.scale.set(1.04, 0.98, 0.98);
+          headMesh.castShadow = true;
+          headGroup.add(headMesh);
+
+          const earGeo = new THREE.SphereGeometry(0.1, 16, 16);
+          const earL = new THREE.Mesh(earGeo, skinMat);
+          earL.position.set(-0.34, 0.02, 0);
+          headGroup.add(earL);
+          const earR = new THREE.Mesh(earGeo, skinMat);
+          earR.position.set(0.34, 0.02, 0);
+          headGroup.add(earR);
+
+          const hairMat = new THREE.MeshStandardMaterial({ color: 0x2B253A, roughness: 0.85 });
+          const hairCap = new THREE.Mesh(
+            new THREE.SphereGeometry(0.36, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.48),
+            hairMat
+          );
+          hairCap.rotation.x = -0.25;
+          hairCap.position.set(0, 0.03, -0.02);
+          headGroup.add(hairCap);
+
+          const eyeMat = new THREE.MeshStandardMaterial({ color: 0x1E1B2E, roughness: 0.3 });
+          const eyeGeo = new THREE.SphereGeometry(0.044, 14, 14);
+          this.leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+          this.leftEye.position.set(-0.12, -0.02, 0.32);
+          headGroup.add(this.leftEye);
+
+          this.rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+          this.rightEye.position.set(0.12, -0.02, 0.32);
+          headGroup.add(this.rightEye);
+
+          const cheekMat = new THREE.MeshStandardMaterial({ color: 0xFF8FA3, roughness: 0.8 });
+          const cheekGeo = new THREE.SphereGeometry(0.048, 12, 12);
+          const leftCheek = new THREE.Mesh(cheekGeo, cheekMat);
+          leftCheek.scale.set(1.2, 0.7, 0.5);
+          leftCheek.position.set(-0.2, -0.09, 0.28);
+          headGroup.add(leftCheek);
+          const rightCheek = new THREE.Mesh(cheekGeo, cheekMat);
+          rightCheek.scale.set(1.2, 0.7, 0.5);
+          rightCheek.position.set(0.2, -0.09, 0.28);
+          headGroup.add(rightCheek);
+
+          this.mouthMesh = new THREE.Mesh(
+            new THREE.TorusGeometry(0.045, 0.012, 8, 16, Math.PI),
+            eyeMat
+          );
+          this.mouthMesh.rotation.z = Math.PI;
+          this.mouthMesh.position.set(0, -0.11, 0.32);
+          headGroup.add(this.mouthMesh);
+
+          this.bandMat = new THREE.MeshStandardMaterial({ color: 0xFFB703, roughness: 0.45 });
+          const headband = new THREE.Mesh(new THREE.TorusGeometry(0.355, 0.032, 12, 36), this.bandMat);
+          headband.rotation.x = Math.PI / 2 - 0.15;
+          headband.position.set(0, 0.18, 0.02);
+          headGroup.add(headband);
+
+          this.foreheadMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+          const cardGeo = new THREE.BoxGeometry(0.76, 0.32, 0.03);
+          const cardBackMat = new THREE.MeshStandardMaterial({ color: 0x1E1B2E, roughness: 0.6 });
+          const cardMesh = new THREE.Mesh(cardGeo, [
+            cardBackMat, cardBackMat, cardBackMat, cardBackMat, this.foreheadMat, cardBackMat
+          ]);
+          cardMesh.position.set(0, 0.34, 0.34);
+          cardMesh.rotation.x = -0.12;
+          headGroup.add(cardMesh);
+
+          this.syncOpponent();
+
+          const dom = renderer.domElement;
+          const onDown = (clientX, clientY) => {
+            this.isDragging = true;
+            this.lastX = clientX;
+            this.lastY = clientY;
+          };
+          const onMove = (clientX, clientY) => {
+            if (!this.isDragging) return;
+            const dx = clientX - this.lastX;
+            const dy = clientY - this.lastY;
+            this.lastX = clientX;
+            this.lastY = clientY;
+            this.targetYaw = Math.max(-0.48, Math.min(0.48, this.targetYaw - dx * 0.0035));
+            this.targetPitch = Math.max(-0.22, Math.min(0.24, this.targetPitch - dy * 0.003));
+          };
+          const onUp = () => { this.isDragging = false; };
+
+          dom.addEventListener('mousedown', (e) => onDown(e.clientX, e.clientY));
+          window.addEventListener('mousemove', (e) => onMove(e.clientX, e.clientY));
+          window.addEventListener('mouseup', onUp);
+
+          dom.addEventListener('touchstart', (e) => {
+            if (e.touches[0]) onDown(e.touches[0].clientX, e.touches[0].clientY);
+          }, { passive: true });
+          dom.addEventListener('touchmove', (e) => {
+            if (e.touches[0]) onMove(e.touches[0].clientX, e.touches[0].clientY);
+          }, { passive: true });
+          dom.addEventListener('touchend', onUp);
+
+          this.resizeHandler = () => {
+            if (!this.container || !this.renderer || !this.camera) return;
+            const w = this.container.clientWidth || 640;
+            const h = this.container.clientHeight || 420;
+            this.camera.aspect = w / h;
+            this.camera.updateProjectionMatrix();
+            this.renderer.setSize(w, h);
+          };
+          window.addEventListener('resize', this.resizeHandler);
+
+          const animate = () => {
+            if (!this.renderer || !this.scene || !this.camera) return;
+            this.rafId = requestAnimationFrame(animate);
+            const t = this.clock.getElapsedTime();
+
+            this.lookYaw += (this.targetYaw - this.lookYaw) * 0.1;
+            this.lookPitch += (this.targetPitch - this.lookPitch) * 0.1;
+            this.camera.position.y = 1.38 + Math.sin(t * 1.4) * 0.012;
+            const lookTarget = new THREE.Vector3(
+              Math.sin(this.lookYaw) * 2.6,
+              1.12 + Math.sin(this.lookPitch) * 1.5,
+              -1.15
+            );
+            this.camera.lookAt(lookTarget);
+
+            if (this.oppGroup) {
+              this.oppGroup.position.y = 0.15 + Math.sin(t * 1.8) * 0.015;
+            }
+
+            if (this.leftEye && this.rightEye) {
+              const blinkCycle = t % 4.2;
+              const scaleY = blinkCycle > 4.05 ? 0.12 : 1.0;
+              this.leftEye.scale.y = scaleY;
+              this.rightEye.scale.y = scaleY;
+            }
+
+            if (this.headGroup) {
+              if (performance.now() < this.reactionEnd) {
+                const phase = t * 14;
+                if (this.reactionType === 'nod') {
+                  this.headGroup.rotation.x = Math.sin(phase) * 0.22;
+                  this.headGroup.rotation.y = 0;
+                  this.headGroup.rotation.z = 0;
+                } else if (this.reactionType === 'shake') {
+                  this.headGroup.rotation.y = Math.sin(phase) * 0.28;
+                  this.headGroup.rotation.x = 0;
+                  this.headGroup.rotation.z = 0;
+                } else if (this.reactionType === 'tilt') {
+                  this.headGroup.rotation.z = Math.sin(t * 6) * 0.16;
+                  this.headGroup.rotation.x = 0;
+                  this.headGroup.rotation.y = 0;
+                }
+              } else {
+                this.headGroup.rotation.x += (0.04 * Math.sin(t * 0.9) - this.headGroup.rotation.x) * 0.1;
+                this.headGroup.rotation.y += (0.06 * Math.sin(t * 0.6) - this.headGroup.rotation.y) * 0.1;
+                this.headGroup.rotation.z += (0 - this.headGroup.rotation.z) * 0.1;
+              }
+            }
+
+            this.renderer.render(this.scene, this.camera);
+          };
+          animate();
+        },
+
+        syncOpponent() {
+          if (!this.foreheadMat || !this.shirtMat || !this.bandMat) return;
+          const viewerIdx = state.playMode === 'online' ? state.online.myIdx : state.currentTurn;
+          const opp = state.players[1 - viewerIdx];
+          const accentHex = opp.id === 0 ? '#FF5E6C' : '#20B2AA';
+          this.shirtMat.color.setHex(opp.shirtColor);
+          this.bandMat.color.setHex(opp.bandColor);
+          if (this.foreheadMat.map) this.foreheadMat.map.dispose();
+          this.foreheadMat.map = this.createForeheadTexture(opp.word || '???', opp.name, accentHex);
+          this.foreheadMat.needsUpdate = true;
+        },
+
+        triggerReaction(type) {
+          this.reactionType = type;
+          this.reactionEnd = performance.now() + 1100;
+        }
+      };
+
+      // ==========================================
+      // 6. HELPERS & GAME ACTIONS
+      // ==========================================
+      const appRoot = document.getElementById('app-root');
+      const modalRoot = document.getElementById('modal-root');
+      const toastContainer = document.getElementById('toast-container');
+      const btnMute = document.getElementById('btn-mute');
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function normalizeAnswer(str) {
+        return String(str || '').trim().toLowerCase().replace(/[\s\-_.,!?·]/g, '');
+      }
+
+      function copyToClipboard(text, successMsg) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text)
+            .then(() => showToast(successMsg, 'success'))
+            .catch(() => fallbackCopy(text, successMsg));
+        } else {
+          fallbackCopy(text, successMsg);
+        }
+      }
+
+      function fallbackCopy(text, successMsg) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+          showToast(successMsg, 'success');
+        } catch (_) {
+          showToast('복사에 실패했어요. 직접 코드를 공유해주세요.', 'warn');
+        }
+      }
+
+      let toastTimeout = null;
+      function showToast(msg, tone = 'dark') {
+        const colors = {
+          dark: 'bg-[#1E1B2E] text-white',
+          success: 'bg-emerald-600 text-white',
+          warn: 'bg-amber-400 text-[#1E1B2E]',
+          error: 'bg-rose-600 text-white'
+        };
+        toastContainer.innerHTML = `
+          <div class="toast-enter px-4 py-2.5 rounded-2xl border-2 border-[#1E1B2E] shadow-[3px_3px_0px_#1E1B2E] font-bold text-sm ${colors[tone] || colors.dark}">
+            ${escapeHtml(msg)}
+          </div>
+        `;
+        clearTimeout(toastTimeout);
+        toastTimeout = setTimeout(() => {
+          toastContainer.innerHTML = '';
+        }, 2800);
+      }
+
+      function getCurrentCategoryInfo() {
+        if (state.playMode === 'online' && state.online.role === 'guest') {
+          return {
+            id: 'remote',
+            name: state.online.categoryDisplay.name,
+            emoji: state.online.categoryDisplay.emoji,
+            words: []
+          };
+        }
+        if (state.selectedCategory === 'custom') {
+          const words = state.customWordsText
+            .split(/[\n,]+/)
+            .map(w => w.trim())
+            .filter(Boolean);
+          const unique = [...new Set(words)];
+          return {
+            id: 'custom',
+            name: state.customTopicName.trim() || '직접 만든 주제',
+            emoji: '✏️',
+            words: unique
+          };
+        }
+        return CATEGORIES[state.selectedCategory];
+      }
+
+      function drawRandomWord(excludeList = []) {
+        const cat = getCurrentCategoryInfo();
+        let pool = cat.words.filter(w => !excludeList.includes(w) && !state.usedWords.includes(w));
+        if (pool.length === 0) {
+          state.usedWords = [];
+          pool = cat.words.filter(w => !excludeList.includes(w));
+        }
+        if (pool.length === 0) pool = cat.words;
+        const picked = pool[Math.floor(Math.random() * pool.length)];
+        state.usedWords.push(picked);
+        return picked;
+      }
+
+      function clearTurnTimer() {
+        if (state.timerId) {
+          clearInterval(state.timerId);
+          state.timerId = null;
+        }
+      }
+
+      function startTurnTimer() {
+        clearTurnTimer();
+        if (!state.timerSetting || state.screen !== 'play') return;
+        state.timerRemaining = state.timerSetting;
+        state.timerPaused = false;
+        state.timerId = setInterval(() => {
+          if (state.timerPaused || state.screen !== 'play') return;
+          state.timerRemaining = Math.max(0, state.timerRemaining - 1);
+          const timerEl = document.getElementById('live-timer-val');
+          if (timerEl) {
+            timerEl.textContent = `${state.timerRemaining}초`;
+            if (state.timerRemaining <= 5 && state.timerRemaining > 0) {
+              timerEl.classList.add('text-rose-600');
+              Sound.tick();
+            }
+          }
+          if (state.timerRemaining === 0) {
+            clearTurnTimer();
+            Sound.wrong();
+            showToast('⏰ 시간 종료!', 'warn');
+          }
+        }, 1000);
+      }
+
+      function getTimeStr() {
+        const d = new Date();
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      }
+
+      function startNewRound(keepScores = true) {
+        const cat = getCurrentCategoryInfo();
+        if (cat.words.length < 2) {
+          showToast('단어가 최소 2개 이상 필요해요! 단어를 추가해주세요.', 'error');
+          return;
+        }
+        if (!keepScores) {
+          state.players[0].score = 0;
+          state.players[1].score = 0;
+          state.roundNumber = 1;
+          state.usedWords = [];
+        } else {
+          state.roundNumber += 1;
+        }
+
+        const w1 = drawRandomWord([]);
+        const w2 = drawRandomWord([w1]);
+        state.players[0].word = w1;
+        state.players[1].word = w2;
+        state.players[0].wrongGuesses = [];
+        state.players[1].wrongGuesses = [];
+        state.winner = null;
+        state.turnCount = 1;
+        state.currentTurn = (state.roundNumber - 1) % 2;
+        state.online.categoryDisplay = { name: cat.name, emoji: cat.emoji };
+        state.online.waitingJudge = false;
+        state.chatMessages = [
+          {
+            id: Date.now(),
+            senderIdx: -1,
+            type: 'system',
+            text: `라운드 ${state.roundNumber} 시작! 주제 [${cat.emoji} ${cat.name}] · 서로 이마 위 단어를 보고 채팅으로 질문해보세요.`,
+            time: getTimeStr()
+          }
+        ];
+        state.chatDraft = '';
+        state.chatMode = 'chat';
+        clearTurnTimer();
+        savePrefs();
+        Sound.flip();
+
+        if (state.playMode === 'online') {
+          Net.send({
+            type: 'round_start',
+            roundNumber: state.roundNumber,
+            firstTurn: state.currentTurn,
+            timerSetting: state.timerSetting,
+            categoryDisplay: { name: cat.name, emoji: cat.emoji },
+            words: [w1, w2],
+            scores: [state.players[0].score, state.players[1].score]
+          });
+          state.screen = 'play';
+          startTurnTimer();
+          render();
+          return;
+        }
+
+        if (state.handoffEnabled) {
+          state.screen = 'handoff';
+        } else {
+          state.screen = 'play';
+          startTurnTimer();
+        }
+        render();
+      }
+
+      function switchPerspective(withHandoff = state.handoffEnabled) {
+        if (state.playMode === 'online') return;
+        state.currentTurn = 1 - state.currentTurn;
+        state.turnCount += 1;
+        state.chatDraft = '';
+        state.chatMode = 'chat';
+        if (withHandoff) {
+          clearTurnTimer();
+          ThreeStage.dispose();
+          state.screen = 'handoff';
+          render();
+        } else {
+          ThreeStage.syncOpponent();
+          startTurnTimer();
+          renderPlayHUDAndChat();
+        }
+      }
+
+      function triggerVictory(winnerIdx, broadcast = true) {
+        clearTurnTimer();
+        ThreeStage.dispose();
+        state.winner = winnerIdx;
+        state.players[winnerIdx].score += 1;
+        state.screen = 'result';
+        if (state.playMode === 'online' && broadcast) {
+          Net.send({ type: 'win', winnerIdx });
+        }
+        Sound.win();
+        render();
+        if (typeof confetti === 'function') {
+          confetti({ particleCount: 90, spread: 75, origin: { y: 0.6 } });
+          setTimeout(() => {
+            confetti({ particleCount: 60, angle: 60, spread: 60, origin: { x: 0 } });
+            confetti({ particleCount: 60, angle: 120, spread: 60, origin: { x: 1 } });
+          }, 220);
+        }
+      }
+
+      function handleChatSubmit() {
+        const raw = state.chatDraft.trim();
+        if (!raw) return;
+
+        const isOnline = state.playMode === 'online';
+        const myIdx = isOnline ? state.online.myIdx : state.currentTurn;
+        const curr = state.players[myIdx];
+        const opp = state.players[1 - myIdx];
+
+        const isExplicitGuess = state.chatMode === 'guess' || raw.startsWith('!정답 ') || raw.startsWith('/정답 ');
+        if (isExplicitGuess) {
+          const guessText = raw.replace(/^(!정답|\/정답)\s*/, '').trim();
+          if (!guessText) {
+            showToast('정답으로 외칠 단어를 입력해주세요!', 'warn');
+            return;
+          }
+          state.chatDraft = '';
+          if (normalizeAnswer(guessText) === normalizeAnswer(curr.word)) {
+            triggerVictory(curr.id, true);
+          } else if (isOnline) {
+            state.online.waitingJudge = true;
+            Net.send({ type: 'judge_request', guesserIdx: curr.id, guess: guessText });
+            showToast(`"${guessText}" 도전! ${opp.name}님의 판정을 기다리는 중...`, 'warn');
+            renderPlayHUDAndChat();
+          } else {
+            openJudgeModal(curr, opp, guessText, false);
+          }
+          return;
+        }
+
+        const timeStr = getTimeStr();
+        state.chatMessages.push({
+          id: Date.now() + Math.random(),
+          senderIdx: myIdx,
+          type: 'chat',
+          text: raw,
+          time: timeStr
+        });
+        state.chatDraft = '';
+        Sound.chat();
+
+        if (isOnline) {
+          Net.send({ type: 'chat', senderIdx: myIdx, text: raw, time: timeStr });
+          state.turnCount += 1;
+          renderPlayHUDAndChat();
+          const inputEl = document.getElementById('chat-input');
+          if (inputEl) { inputEl.value = ''; inputEl.focus(); }
+          return;
+        }
+
+        if (/^(예|응|맞아|네|ㅇㅇ|⭕)/.test(raw)) ThreeStage.triggerReaction('nod');
+        else if (/^(아니|아냐|노|ㄴㄴ|땡|❌)/.test(raw)) ThreeStage.triggerReaction('shake');
+        else if (raw.includes('?') || raw.includes('애매')) ThreeStage.triggerReaction('tilt');
+
+        if (state.autoSwitchOnSend) {
+          switchPerspective(state.handoffEnabled);
+        } else {
+          renderPlayHUDAndChat();
+        }
+      }
+
+      function recordWrongGuess(guess, guesserIdx = state.currentTurn) {
+        const curr = state.players[guesserIdx];
+        curr.wrongGuesses.push(guess);
+        state.chatMessages.push({
+          id: Date.now(),
+          senderIdx: curr.id,
+          type: 'guess_wrong',
+          text: `🎯 정답 도전: "${guess}" → 오답!`,
+          time: getTimeStr()
+        });
+        Sound.wrong();
+        showToast(`땡! "${guess}"은(는) 오답이에요.`, 'error');
+        if (state.playMode === 'online') {
+          Net.send({ type: 'guess_wrong', guesserIdx: curr.id, guess });
+          renderPlayHUDAndChat();
+        } else {
+          switchPerspective(state.handoffEnabled);
+        }
+      }
+
+      // ==========================================
+      // 7. MODALS
+      // ==========================================
+      function closeModal() {
+        modalRoot.classList.add('hidden');
+        modalRoot.innerHTML = '';
+      }
+
+      function openRulesModal() {
+        Sound.click();
+        modalRoot.innerHTML = `
+          <div class="card-pop max-w-lg w-full p-5 sm:p-6 bg-white relative max-h-[88vh] overflow-y-auto scrollbar-thin">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-xl font-black flex items-center gap-2"><span>📖</span> 양세찬 게임 3D 방법</h2>
+              <button id="modal-close-x" type="button" class="w-8 h-8 rounded-lg border-2 border-[#1E1B2E] font-black hover:bg-slate-100">✕</button>
+            </div>
+            <ol class="space-y-3 text-sm sm:text-base leading-relaxed">
+              <li class="flex gap-3 p-3 rounded-xl bg-amber-50 border-2 border-[#1E1B2E]/15">
+                <span class="font-black text-amber-600 shrink-0">1.</span>
+                <span><strong>온라인 1:1 연결:</strong> 방장이 <strong>방 만들기</strong>를 누르면 4자리 방 코드가 생겨요. 친구가 코드를 입력해 입장하면 각자 기기에서 바로 연동됩니다!</span>
+              </li>
+              <li class="flex gap-3 p-3 rounded-xl bg-rose-50 border-2 border-[#1E1B2E]/15">
+                <span class="font-black text-rose-600 shrink-0">2.</span>
+                <span><strong>3D 1인칭 착석:</strong> 테이블 맞은편에 앉은 상대방 3D 캐릭터의 이마 위에 맞춰야 할 단어가 떠 있고, 내 이마 위 단어는 나만 못 봐요.</span>
+              </li>
+              <li class="flex gap-3 p-3 rounded-xl bg-teal-50 border-2 border-[#1E1B2E]/15">
+                <span class="font-black text-teal-600 shrink-0">3.</span>
+                <span><strong>1인칭 채팅만 사용:</strong> 채팅으로 질문과 대답을 주고받으며 추리하세요. 상대방이 "예/아니오"라고 답하면 3D 캐릭터가 고개를 끄덕이거나 흔들어요!</span>
+              </li>
+              <li class="flex gap-3 p-3 rounded-xl bg-violet-50 border-2 border-[#1E1B2E]/15">
+                <span class="font-black text-violet-600 shrink-0">4.</span>
+                <span><strong>🎯 정답 외치기:</strong> 채팅창 왼쪽의 <strong>🎯 정답</strong> 버튼을 누르고 단어를 입력하면 정답에 도전합니다!</span>
+              </li>
+            </ol>
+            <button id="modal-close-btn" type="button" class="mt-5 w-full py-3 rounded-xl bg-[#FFB703] font-black btn-pop">알겠어요! 게임하러 가기</button>
+          </div>
+        `;
+        modalRoot.classList.remove('hidden');
+        document.getElementById('modal-close-x').addEventListener('click', closeModal);
+        document.getElementById('modal-close-btn').addEventListener('click', closeModal);
+      }
+
+      function openJudgeModal(curr, opp, guess, isOnlineRemote = false) {
+        Sound.click();
+        modalRoot.innerHTML = `
+          <div class="card-pop max-w-md w-full p-6 bg-white text-center">
+            <div class="text-4xl mb-2">🧐</div>
+            <h2 class="text-xl font-black mb-1">${escapeHtml(opp.name)}님의 판정이 필요해요!</h2>
+            <p class="text-sm text-slate-600 mb-4">${escapeHtml(curr.name)}님이 외친 정답이 설정된 단어와 정확히 일치하지 않아요.<br/>유사어/오타라면 정답으로 인정해 줄 수 있어요.</p>
+            <div class="p-3.5 rounded-2xl bg-amber-50 border-2 border-[#1E1B2E] mb-3">
+              <div class="text-xs font-bold text-slate-500 mb-1">${escapeHtml(curr.name)}님의 추측</div>
+              <div class="text-2xl font-black text-[#1E1B2E]">"${escapeHtml(guess)}"</div>
+            </div>
+            ${isOnlineRemote ? `
+              <div class="text-xs font-bold text-slate-500 mb-4">(${escapeHtml(curr.name)}님의 실제 이마 위 단어: <strong class="text-[#1E1B2E]">${escapeHtml(curr.word)}</strong>)</div>
+            ` : '<div class="mb-4"></div>'}
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button id="judge-wrong" type="button" class="py-3 px-4 rounded-xl bg-rose-500 text-white font-black btn-pop">❌ 오답!</button>
+              <button id="judge-accept" type="button" class="py-3 px-4 rounded-xl bg-emerald-400 text-[#1E1B2E] font-black btn-pop">🎉 정답 인정!</button>
+            </div>
+          </div>
+        `;
+        modalRoot.classList.remove('hidden');
+        document.getElementById('judge-wrong').addEventListener('click', () => {
+          closeModal();
+          recordWrongGuess(guess, curr.id);
+        });
+        document.getElementById('judge-accept').addEventListener('click', () => {
+          closeModal();
+          triggerVictory(curr.id, true);
+        });
+      }
+
+      // ==========================================
+      // 8. VIEW RENDERERS
+      // ==========================================
+      function renderHeadbandAvatar(player, options = {}) {
+        const { showWord = false, isWinner = false } = options;
+        const isP1 = player.id === 0;
+        const accentBg = isP1 ? 'bg-[#FFE4E7]' : 'bg-[#DFF7F5]';
+        const bandColor = isP1 ? 'bg-[#FF5E6C]' : 'bg-[#20B2AA]';
+        const badgeColor = isP1 ? 'bg-[#FF5E6C] text-white' : 'bg-[#20B2AA] text-white';
+
+        return `
+          <div class="card-pop p-4 sm:p-5 flex flex-col items-center relative ${isWinner ? 'bg-amber-50' : 'bg-white'}">
+            <div class="w-full flex items-center justify-between mb-2">
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border-2 border-[#1E1B2E] text-xs font-black ${badgeColor}">
+                ${escapeHtml(player.name)}
+              </span>
+              ${isWinner ? `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFB703] border-2 border-[#1E1B2E] text-xs font-black">
+                  🏆 정답!
+                </span>
+              ` : ''}
+            </div>
+            <div class="w-full flex flex-col items-center mt-1 mb-1">
+              <div class="headband-float w-full max-w-[230px] px-4 py-3 rounded-2xl border-2 border-[#1E1B2E] shadow-[3px_3px_0px_#1E1B2E] text-center ${showWord ? 'bg-[#FFF3B0] text-[#1E1B2E]' : 'word-card-secret'}">
+                <div class="text-[10px] font-black uppercase tracking-wider opacity-75 mb-0.5">이마 위 단어</div>
+                <div class="text-xl sm:text-2xl font-black tracking-tight break-keep leading-snug">
+                  ${showWord ? escapeHtml(player.word) : '? ? ?'}
+                </div>
+              </div>
+              <div class="w-1.5 h-3 bg-[#1E1B2E]"></div>
+              <div class="w-24 sm:w-28 headband-band ${bandColor}"></div>
+            </div>
+            <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full ${accentBg} border-2 border-[#1E1B2E] flex items-center justify-center text-4xl sm:text-5xl -mt-2 shadow-inner select-none">
+              ${player.avatar}
+            </div>
+          </div>
+        `;
+      }
+
+      // --- SCREEN 1: SETUP (ONLINE 1:1 + LOCAL) ---
+      function renderSetup() {
+        ThreeStage.dispose();
+        const catEntries = Object.values(CATEGORIES);
+        const isOnline = state.playMode === 'online';
+
+        appRoot.innerHTML = `
+          <div class="space-y-5">
+            <!-- Hero Banner -->
+            <section class="card-pop p-5 sm:p-6 bg-gradient-to-br from-[#FFF3B0] via-[#FFFBF2] to-[#DFF7F5]">
+              <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="text-center sm:text-left">
+                  <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border-2 border-[#1E1B2E] text-xs font-black mb-2">
+                    🌐 1:1 온라인 실시간 연동 & 3D 1인칭
+                  </div>
+                  <h1 class="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
+                    3D 캐릭터와 마주 보고 <span class="text-[#FF5E6C]">양세찬 게임!</span>
+                  </h1>
+                  <p class="text-sm sm:text-base text-slate-700 mt-1.5 font-medium">
+                    방 코드 하나로 친구와 온라인 1:1 연결! 각자 1인칭 시점으로 상대방 이마 위 단어를 보며 채팅으로 맞춰보세요.
+                  </p>
+                </div>
+                <div class="flex items-center gap-3 shrink-0">
+                  <div class="flex flex-col items-center">
+                    <div class="px-3 py-1 rounded-xl word-card-secret border-2 border-[#1E1B2E] text-xs font-black mb-1">? ? ?</div>
+                    <div class="w-14 h-14 rounded-full bg-[#FFE4E7] border-2 border-[#1E1B2E] flex items-center justify-center text-3xl">${state.players[0].avatar}</div>
+                  </div>
+                  <div class="text-2xl font-black text-[#1E1B2E]">VS</div>
+                  <div class="flex flex-col items-center">
+                    <div class="px-3 py-1 rounded-xl bg-[#FFB703] border-2 border-[#1E1B2E] text-xs font-black mb-1">떡볶이</div>
+                    <div class="w-14 h-14 rounded-full bg-[#DFF7F5] border-2 border-[#1E1B2E] flex items-center justify-center text-3xl">${state.players[1].avatar}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Play Mode Switcher -->
+              <div class="mt-5 grid grid-cols-2 gap-2.5 p-1.5 rounded-2xl bg-white/90 border-2 border-[#1E1B2E]">
+                <button id="btn-mode-online" type="button" class="py-2.5 px-3 rounded-xl font-black text-xs sm:text-sm transition ${isOnline ? 'bg-[#1E1B2E] text-white shadow-[2px_2px_0px_#FFB703]' : 'text-slate-600 hover:bg-slate-100'}">
+                  🌐 온라인 1:1 (친구와 각자 기기)
+                </button>
+                <button id="btn-mode-local" type="button" class="py-2.5 px-3 rounded-xl font-black text-xs sm:text-sm transition ${!isOnline ? 'bg-[#1E1B2E] text-white shadow-[2px_2px_0px_#FFB703]' : 'text-slate-600 hover:bg-slate-100'}">
+                  📱 한 기기로 번갈아 하기
+                </button>
+              </div>
+            </section>
+
+            ${isOnline ? `
+              <!-- ONLINE PROFILE + JOIN ROOM -->
+              <section class="grid grid-cols-1 md:grid-cols-12 gap-5">
+                <div class="md:col-span-7 card-pop p-5">
+                  <h2 class="text-base sm:text-lg font-black mb-3 flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-lg bg-[#FF5E6C] text-white text-xs flex items-center justify-center border-2 border-[#1E1B2E]">1</span>
+                    내 프로필 설정
+                  </h2>
+                  <div class="p-4 rounded-2xl border-2 border-[#1E1B2E] bg-[#FFE4E7]/40">
+                    <div class="flex items-center gap-3 mb-3">
+                      <div class="w-12 h-12 rounded-2xl bg-white border-2 border-[#1E1B2E] flex items-center justify-center text-2xl shrink-0">
+                        ${state.players[0].avatar}
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <label class="block text-xs font-black text-slate-600 mb-1" for="online-my-name">내 닉네임</label>
+                        <input id="online-my-name" type="text" maxlength="12" value="${escapeHtml(state.players[0].name)}" placeholder="닉네임 입력" class="w-full px-3 py-1.5 rounded-xl bg-white border-2 border-[#1E1B2E] font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                      </div>
+                    </div>
+                    <div class="flex flex-wrap gap-1.5">
+                      ${AVATARS.map(av => `
+                        <button type="button" data-avatar-player="0" data-avatar="${av}" class="w-9 h-9 rounded-xl border-2 text-lg flex items-center justify-center transition ${state.players[0].avatar === av ? 'bg-[#FFB703] border-[#1E1B2E] scale-105 shadow-[2px_2px_0px_#1E1B2E]' : 'bg-white border-[#1E1B2E]/25 hover:border-[#1E1B2E]'}">
+                          ${av}
+                        </button>
+                      `).join('')}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="md:col-span-5 card-pop p-5 bg-[#DFF7F5]/60 flex flex-col justify-between">
+                  <div>
+                    <h2 class="text-base sm:text-lg font-black mb-1 flex items-center gap-2">
+                      <span>🔑</span> 친구 방에 바로 입장
+                    </h2>
+                    <p class="text-xs font-semibold text-slate-600 mb-3">친구가 방을 만들었다면 4자리 코드를 입력하세요.</p>
+                    <input id="join-code-input" type="text" maxlength="6" value="${escapeHtml(state.online.joinCodeInput)}" placeholder="예: 7K4P" class="w-full px-4 py-3 rounded-xl bg-white border-2 border-[#1E1B2E] font-black text-xl tracking-widest text-center uppercase focus:outline-none focus:ring-2 focus:ring-teal-400 mb-3" />
+                  </div>
+                  <button id="btn-join-room" type="button" class="w-full py-3.5 rounded-2xl bg-[#20B2AA] hover:bg-[#1ca19a] text-white font-black text-base btn-pop">
+                    🚪 방 코드로 입장하기
+                  </button>
+                </div>
+              </section>
+            ` : `
+              <!-- LOCAL 2-PLAYER SETUP -->
+              <section class="card-pop p-5">
+                <h2 class="text-base sm:text-lg font-black mb-3 flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg bg-[#FF5E6C] text-white text-xs flex items-center justify-center border-2 border-[#1E1B2E]">1</span>
+                  플레이어 설정
+                </h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  ${state.players.map((p, idx) => `
+                    <div class="p-4 rounded-2xl border-2 border-[#1E1B2E] ${idx === 0 ? 'bg-[#FFE4E7]/50' : 'bg-[#DFF7F5]/50'}">
+                      <div class="flex items-center gap-3 mb-3">
+                        <div class="w-12 h-12 rounded-2xl bg-white border-2 border-[#1E1B2E] flex items-center justify-center text-2xl shrink-0">
+                          ${p.avatar}
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <label class="block text-xs font-black text-slate-600 mb-1" for="player-name-${idx}">플레이어 ${idx + 1} 이름</label>
+                          <input id="player-name-${idx}" type="text" maxlength="12" value="${escapeHtml(p.name)}" placeholder="이름 입력" class="w-full px-3 py-1.5 rounded-xl bg-white border-2 border-[#1E1B2E] font-bold text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                        </div>
+                      </div>
+                      <div class="flex flex-wrap gap-1.5">
+                        ${AVATARS.map(av => `
+                          <button type="button" data-avatar-player="${idx}" data-avatar="${av}" class="w-9 h-9 rounded-xl border-2 text-lg flex items-center justify-center transition ${p.avatar === av ? 'bg-[#FFB703] border-[#1E1B2E] scale-105 shadow-[2px_2px_0px_#1E1B2E]' : 'bg-white border-[#1E1B2E]/25 hover:border-[#1E1B2E]'}">
+                            ${av}
+                          </button>
+                        `).join('')}
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </section>
+            `}
+
+            <!-- Step 2: Topic Selection -->
+            <section class="card-pop p-5">
+              <h2 class="text-base sm:text-lg font-black mb-3 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-[#20B2AA] text-white text-xs flex items-center justify-center border-2 border-[#1E1B2E]">2</span>
+                ${isOnline ? '방 만들기 주제 선택 (방장용)' : '주제 선택'}
+              </h2>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                ${catEntries.map(cat => {
+                  const selected = state.selectedCategory === cat.id;
+                  return `
+                    <button type="button" data-cat="${cat.id}" class="p-3.5 rounded-2xl border-2 border-[#1E1B2E] text-left transition ${selected ? 'bg-[#FFB703] shadow-[4px_4px_0px_#1E1B2E] -translate-y-0.5' : `${cat.color} hover:brightness-95`}">
+                      <div class="text-2xl mb-1">${cat.emoji}</div>
+                      <div class="font-black text-sm sm:text-base">${cat.name}</div>
+                      <div class="text-[11px] font-semibold text-slate-700 mt-0.5 leading-tight">${cat.desc}</div>
+                      ${cat.words.length ? `<div class="text-[10px] font-bold text-slate-600 mt-1.5">${cat.words.length}개 단어</div>` : '<div class="text-[10px] font-bold text-slate-600 mt-1.5">자유 입력</div>'}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+
+              ${state.selectedCategory === 'custom' ? `
+                <div class="mt-4 p-4 rounded-2xl bg-yellow-50 border-2 border-[#1E1B2E] space-y-3">
+                  <div>
+                    <label for="custom-topic-name" class="block text-xs font-black mb-1">커스텀 주제 이름</label>
+                    <input id="custom-topic-name" type="text" maxlength="20" value="${escapeHtml(state.customTopicName)}" placeholder="예: 우리 동네 맛집, 좋아하는 노래" class="w-full px-3 py-2 rounded-xl bg-white border-2 border-[#1E1B2E] text-sm font-bold" />
+                  </div>
+                  <div>
+                    <label for="custom-words-text" class="block text-xs font-black mb-1">단어 목록 (쉼표 또는 줄바꿈으로 구분, 최소 2개)</label>
+                    <textarea id="custom-words-text" rows="3" placeholder="예: 떡볶이, 김밥, 순대, 튀김" class="w-full px-3 py-2 rounded-xl bg-white border-2 border-[#1E1B2E] text-sm font-medium">${escapeHtml(state.customWordsText)}</textarea>
+                  </div>
+                </div>
+              ` : ''}
+            </section>
+
+            <!-- Step 3: Options & Start / Create Room -->
+            <section class="card-pop p-5">
+              <h2 class="text-base sm:text-lg font-black mb-3 flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-[#FFB703] text-[#1E1B2E] text-xs flex items-center justify-center border-2 border-[#1E1B2E]">3</span>
+                게임 옵션
+              </h2>
+              <div class="grid grid-cols-1 ${isOnline ? '' : 'sm:grid-cols-2'} gap-4 mb-5">
+                <div class="p-3.5 rounded-2xl bg-slate-50 border-2 border-[#1E1B2E]/20">
+                  <div class="text-xs font-black text-slate-600 mb-2">⏱️ 라운드/턴 제한 시간</div>
+                  <div class="flex flex-wrap gap-2">
+                    ${[
+                      { val: 0, label: '제한 없음' },
+                      { val: 30, label: '30초' },
+                      { val: 60, label: '60초' },
+                      { val: 90, label: '90초' }
+                    ].map(opt => `
+                      <button type="button" data-timer="${opt.val}" class="px-3 py-1.5 rounded-xl border-2 border-[#1E1B2E] text-xs font-black transition ${state.timerSetting === opt.val ? 'bg-[#1E1B2E] text-white' : 'bg-white hover:bg-slate-100'}">
+                        ${opt.label}
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+
+                ${!isOnline ? `
+                  <div class="p-3.5 rounded-2xl bg-slate-50 border-2 border-[#1E1B2E]/20 flex items-center justify-between gap-3">
+                    <div>
+                      <div class="text-xs font-black text-slate-800">🛡️ 시점 전환 가림막 (추천)</div>
+                      <div class="text-[11px] text-slate-600 mt-0.5">한 기기에서 번갈아 채팅할 때 상대방 이마 단어를 못 보게 가려줘요.</div>
+                    </div>
+                    <button id="btn-toggle-handoff" type="button" class="shrink-0 px-3.5 py-1.5 rounded-xl border-2 border-[#1E1B2E] text-xs font-black transition ${state.handoffEnabled ? 'bg-emerald-400 text-[#1E1B2E]' : 'bg-white text-slate-500'}">
+                      ${state.handoffEnabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                ` : ''}
+              </div>
+
+              ${isOnline ? `
+                <button id="btn-create-room" type="button" class="w-full py-4 rounded-2xl bg-[#FF5E6C] hover:bg-[#ff4b5b] text-white font-black text-lg sm:text-xl btn-pop flex items-center justify-center gap-2">
+                  <span>🏠</span>
+                  <span>온라인 방 만들고 코드 받기!</span>
+                </button>
+              ` : `
+                <button id="btn-start-game" type="button" class="w-full py-4 rounded-2xl bg-[#FF5E6C] hover:bg-[#ff4b5b] text-white font-black text-lg sm:text-xl btn-pop flex items-center justify-center gap-2">
+                  <span>🪑</span>
+                  <span>3D 1인칭 게임 시작!</span>
+                </button>
+              `}
+            </section>
+          </div>
+        `;
+
+        document.getElementById('btn-mode-online').addEventListener('click', () => {
+          Sound.click();
+          state.playMode = 'online';
+          render();
+        });
+        document.getElementById('btn-mode-local').addEventListener('click', () => {
+          Sound.click();
+          Net.cleanup();
+          state.playMode = 'local';
+          render();
+        });
+
+        if (isOnline) {
+          const myNameEl = document.getElementById('online-my-name');
+          myNameEl.addEventListener('input', (e) => {
+            state.players[0].name = e.target.value.trim() || '나';
+          });
+          const joinInput = document.getElementById('join-code-input');
+          joinInput.addEventListener('input', (e) => {
+            state.online.joinCodeInput = e.target.value.toUpperCase();
+          });
+          joinInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              state.players[1].name = myNameEl.value.trim() || '친구';
+              state.players[1].avatar = state.players[0].avatar;
+              Net.joinRoom(joinInput.value);
+            }
+          });
+          document.getElementById('btn-join-room').addEventListener('click', () => {
+            Sound.click();
+            state.players[1].name = myNameEl.value.trim() || '친구';
+            state.players[1].avatar = state.players[0].avatar;
+            Net.joinRoom(joinInput.value);
+          });
+          document.getElementById('btn-create-room').addEventListener('click', () => {
+            Sound.click();
+            state.players[0].name = myNameEl.value.trim() || '나';
+            Net.createRoom();
+          });
+        } else {
+          [0, 1].forEach(idx => {
+            const inp = document.getElementById(`player-name-${idx}`);
+            inp.addEventListener('input', (e) => {
+              state.players[idx].name = e.target.value.trim() || (idx === 0 ? '나' : '친구');
+            });
+          });
+          document.getElementById('btn-toggle-handoff').addEventListener('click', () => {
+            Sound.click();
+            state.handoffEnabled = !state.handoffEnabled;
+            render();
+          });
+          document.getElementById('btn-start-game').addEventListener('click', () => {
+            const n0 = document.getElementById('player-name-0').value.trim();
+            const n1 = document.getElementById('player-name-1').value.trim();
+            state.players[0].name = n0 || '나';
+            state.players[1].name = n1 || '친구';
+            startNewRound(false);
+          });
+        }
+
+        appRoot.querySelectorAll('[data-avatar-player]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            Sound.click();
+            const idx = Number(btn.dataset.avatarPlayer);
+            state.players[idx].avatar = btn.dataset.avatar;
+            render();
+          });
+        });
+
+        appRoot.querySelectorAll('[data-cat]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            Sound.click();
+            state.selectedCategory = btn.dataset.cat;
+            render();
+          });
+        });
+
+        if (state.selectedCategory === 'custom') {
+          document.getElementById('custom-topic-name').addEventListener('input', (e) => {
+            state.customTopicName = e.target.value;
+          });
+          document.getElementById('custom-words-text').addEventListener('input', (e) => {
+            state.customWordsText = e.target.value;
+          });
+        }
+
+        appRoot.querySelectorAll('[data-timer]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            Sound.click();
+            state.timerSetting = Number(btn.dataset.timer);
+            render();
+          });
+        });
+      }
+
+      // --- SCREEN 1.5: ONLINE WAITING LOBBY ---
+      function renderLobby() {
+        ThreeStage.dispose();
+        const isHost = state.online.role === 'host';
+        const connected = state.online.peerConnected;
+        const cat = getCurrentCategoryInfo();
+
+        appRoot.innerHTML = `
+          <div class="max-w-xl mx-auto py-2">
+            <div class="card-pop p-6 sm:p-8 text-center bg-white space-y-5">
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full border-2 border-[#1E1B2E] text-xs font-black ${connected ? 'bg-emerald-200' : 'bg-amber-100'}">
+                <span>${connected ? '🟢' : '🟡'}</span>
+                <span>${escapeHtml(state.online.statusMsg || '대기 중...')}</span>
+              </div>
+
+              <div>
+                <div class="text-xs font-black text-slate-500 mb-1">우리 둘만의 방 코드</div>
+                <div class="inline-flex items-center justify-center px-8 py-4 rounded-2xl bg-[#FFF3B0] border-2 border-[#1E1B2E] shadow-[4px_4px_0px_#1E1B2E] text-4xl sm:text-5xl font-black tracking-[0.22em]">
+                  ${escapeHtml(state.online.roomCode || '----')}
+                </div>
+              </div>
+
+              ${isHost && !connected ? `
+                <div class="flex flex-wrap justify-center gap-2">
+                  <button id="btn-copy-code" type="button" class="px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 font-black text-sm btn-pop">
+                    📋 방 코드 복사
+                  </button>
+                  <button id="btn-copy-link" type="button" class="px-4 py-2.5 rounded-xl bg-sky-200 hover:bg-sky-300 font-black text-sm btn-pop">
+                    🔗 초대 링크 복사
+                  </button>
+                </div>
+                <p class="text-xs text-slate-500">친구에게 같은 홈페이지 주소와 방 코드 <strong>${escapeHtml(state.online.roomCode)}</strong>를 알려주세요!</p>
+              ` : ''}
+
+              <!-- Connected Players Preview -->
+              <div class="grid grid-cols-2 gap-3 pt-2">
+                <div class="p-4 rounded-2xl border-2 border-[#1E1B2E] bg-[#FFE4E7]/50">
+                  <div class="text-3xl mb-1">${state.players[0].avatar}</div>
+                  <div class="font-black text-sm">${escapeHtml(state.players[0].name)}</div>
+                  <div class="text-[11px] font-bold text-rose-600 mt-0.5">방장 (1P)</div>
+                </div>
+                <div class="p-4 rounded-2xl border-2 border-[#1E1B2E] ${connected ? 'bg-[#DFF7F5]/60' : 'bg-slate-100 border-dashed'}">
+                  <div class="text-3xl mb-1">${connected ? state.players[1].avatar : '⏳'}</div>
+                  <div class="font-black text-sm">${connected ? escapeHtml(state.players[1].name) : '친구 대기 중...'}</div>
+                  <div class="text-[11px] font-bold text-teal-700 mt-0.5">${connected ? '입장 완료 (2P)' : '코드 입력 대기'}</div>
+                </div>
+              </div>
+
+              ${isHost ? `
+                <div class="text-xs font-bold text-slate-600">
+                  선택된 주제: <strong>${cat.emoji} ${escapeHtml(cat.name)}</strong>
+                </div>
+                <button id="btn-online-start" type="button" ${connected ? '' : 'disabled'} class="w-full py-4 rounded-2xl bg-[#FF5E6C] hover:bg-[#ff4b5b] text-white font-black text-lg btn-pop">
+                  ${connected ? '🪑 둘 다 준비 완료! 3D 게임 시작!' : '친구가 입장하면 시작할 수 있어요'}
+                </button>
+              ` : `
+                <div class="p-3.5 rounded-2xl bg-slate-50 border-2 border-[#1E1B2E]/20 text-sm font-bold text-slate-700">
+                  ${connected ? '🎉 방에 입장했어요! 방장이 게임을 시작하면 바로 3D 화면으로 이동합니다.' : '방장과 연결하는 중입니다...'}
+                </div>
+              `}
+
+              <button id="btn-leave-lobby" type="button" class="text-xs font-bold text-slate-500 hover:text-[#1E1B2E] underline underline-offset-2">
+                ← 방 나가기 (처음으로)
+              </button>
+            </div>
+          </div>
+        `;
+
+        const copyCodeBtn = document.getElementById('btn-copy-code');
+        if (copyCodeBtn) {
+          copyCodeBtn.addEventListener('click', () => {
+            Sound.click();
+            copyToClipboard(state.online.roomCode, `방 코드 [${state.online.roomCode}] 복사 완료!`);
+          });
+        }
+        const copyLinkBtn = document.getElementById('btn-copy-link');
+        if (copyLinkBtn) {
+          copyLinkBtn.addEventListener('click', () => {
+            Sound.click();
+            const base = window.location.href.split('?')[0];
+            const invite = base.startsWith('http') ? `${base}?room=${state.online.roomCode}` : state.online.roomCode;
+            copyToClipboard(invite, '초대 링크를 복사했어요!');
+          });
+        }
+        const startBtn = document.getElementById('btn-online-start');
+        if (startBtn) {
+          startBtn.addEventListener('click', () => {
+            if (!state.online.peerConnected) return;
+            startNewRound(false);
+          });
+        }
+        document.getElementById('btn-leave-lobby').addEventListener('click', () => {
+          Sound.click();
+          Net.cleanup();
+          state.screen = 'setup';
+          render();
+        });
+      }
+
+      // --- SCREEN 2: HANDOFF CURTAIN (LOCAL ONLY) ---
+      function renderHandoff() {
+        ThreeStage.dispose();
+        const curr = state.players[state.currentTurn];
+        const opp = state.players[1 - state.currentTurn];
+        const cat = getCurrentCategoryInfo();
+
+        appRoot.innerHTML = `
+          <div class="max-w-lg mx-auto py-4">
+            <div class="card-pop p-6 sm:p-9 text-center bg-white">
+              <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-100 border-2 border-[#1E1B2E] text-xs font-black mb-5">
+                <span>${cat.emoji} ${escapeHtml(cat.name)}</span>
+                <span>•</span>
+                <span>라운드 ${state.roundNumber} · 턴 ${state.turnCount}</span>
+              </div>
+
+              <div class="w-24 h-24 mx-auto rounded-full ${curr.id === 0 ? 'bg-[#FFE4E7]' : 'bg-[#DFF7F5]'} border-2 border-[#1E1B2E] flex items-center justify-center text-5xl mb-4 shadow-[3px_3px_0px_#1E1B2E]">
+                ${curr.avatar}
+              </div>
+
+              <h2 class="text-2xl sm:text-3xl font-black mb-2">
+                <span class="${curr.id === 0 ? 'text-[#FF5E6C]' : 'text-[#20B2AA]'}">${escapeHtml(curr.name)}</span>님의 1인칭 자리!
+              </h2>
+              <p class="text-sm sm:text-base text-slate-600 font-medium mb-6">
+                <strong>${escapeHtml(opp.name)}님</strong>은 잠깐 화면을 보지 마세요!<br/>
+                화면에 들어가면 3D 맞은편에 앉은 <strong>${escapeHtml(opp.name)}님의 이마 위 단어</strong>가 보입니다.
+              </p>
+
+              <button id="btn-ready-turn" type="button" class="w-full py-4 rounded-2xl bg-[#FFB703] font-black text-lg btn-pop">
+                🪑 자리에 앉기 (1인칭 시작)
+              </button>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('btn-ready-turn').addEventListener('click', () => {
+          Sound.click();
+          state.screen = 'play';
+          startTurnTimer();
+          render();
+        });
+      }
+
+      // --- SCREEN 3: 3D 1ST-PERSON + CHAT-ONLY PLAY ---
+      function renderPlayHUDAndChat() {
+        const isOnline = state.playMode === 'online';
+        const myIdx = isOnline ? state.online.myIdx : state.currentTurn;
+        const curr = state.players[myIdx];
+        const opp = state.players[1 - myIdx];
+        const cat = getCurrentCategoryInfo();
+
+        const hudEl = document.getElementById('play-hud');
+        if (hudEl) {
+          hudEl.innerHTML = `
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="px-2.5 py-1 rounded-xl bg-white/95 border-2 border-[#1E1B2E] text-xs font-black shadow-[2px_2px_0px_#1E1B2E]">
+                ${cat.emoji} ${escapeHtml(cat.name)}
+              </span>
+              <span class="px-2.5 py-1 rounded-xl border-2 border-[#1E1B2E] text-xs font-black shadow-[2px_2px_0px_#1E1B2E] ${curr.id === 0 ? 'bg-[#FFE4E7] text-[#1E1B2E]' : 'bg-[#DFF7F5] text-[#1E1B2E]'}">
+                👁️ 내 시점: ${curr.avatar} ${escapeHtml(curr.name)} (내 단어: ???)
+              </span>
+              ${isOnline ? `
+                <span class="px-2.5 py-1 rounded-xl border-2 border-[#1E1B2E] text-xs font-black shadow-[2px_2px_0px_#1E1B2E] ${state.online.peerConnected ? 'bg-emerald-200' : 'bg-rose-200'}">
+                  ${state.online.peerConnected ? `🟢 온라인 (${escapeHtml(state.online.roomCode)})` : '🔴 연결 끊김'}
+                </span>
+              ` : ''}
+              ${state.timerSetting > 0 ? `
+                <button id="btn-pause-timer" type="button" class="px-2.5 py-1 rounded-xl bg-white/95 border-2 border-[#1E1B2E] text-xs font-black shadow-[2px_2px_0px_#1E1B2E] flex items-center gap-1">
+                  <span>${state.timerPaused ? '▶️' : '⏱️'}</span>
+                  <span id="live-timer-val">${state.timerRemaining}초</span>
+                </button>
+              ` : ''}
+            </div>
+
+            <div class="flex items-center gap-1.5">
+              <div class="px-2.5 py-1 rounded-xl bg-white/95 border-2 border-[#1E1B2E] text-xs font-black shadow-[2px_2px_0px_#1E1B2E] flex items-center gap-1.5">
+                <span>${state.players[0].avatar} ${state.players[0].score}</span>
+                <span class="text-slate-400">:</span>
+                <span>${state.players[1].score} ${state.players[1].avatar}</span>
+              </div>
+              ${!isOnline ? `
+                <button id="btn-manual-switch" type="button" class="px-2.5 py-1 rounded-xl bg-[#FFB703] border-2 border-[#1E1B2E] text-xs font-black shadow-[2px_2px_0px_#1E1B2E] hover:brightness-95 transition">
+                  🔄 시점 전환 (${escapeHtml(opp.name)})
+                </button>
+              ` : ''}
+            </div>
+          `;
+
+          const pauseBtn = document.getElementById('btn-pause-timer');
+          if (pauseBtn) {
+            pauseBtn.addEventListener('click', () => {
+              Sound.click();
+              state.timerPaused = !state.timerPaused;
+              renderPlayHUDAndChat();
+            });
+          }
+          const switchBtn = document.getElementById('btn-manual-switch');
+          if (switchBtn) {
+            switchBtn.addEventListener('click', () => {
+              Sound.click();
+              switchPerspective(state.handoffEnabled);
+            });
+          }
+        }
+
+        const chatLogEl = document.getElementById('chat-log-list');
+        if (chatLogEl) {
+          chatLogEl.innerHTML = state.chatMessages.map(m => {
+            if (m.type === 'system') {
+              return `
+                <div class="flex justify-center">
+                  <span class="px-3 py-1 rounded-full bg-[#1E1B2E]/75 text-white text-[11px] font-bold text-center">
+                    ${escapeHtml(m.text)}
+                  </span>
+                </div>
+              `;
+            }
+            const sender = state.players[m.senderIdx];
+            const isMine = m.senderIdx === myIdx;
+            const bubbleColor = m.type === 'guess_wrong'
+              ? 'bg-rose-100 border-rose-500 text-rose-900'
+              : (sender.id === 0 ? 'bg-[#FFE4E7] border-[#1E1B2E]' : 'bg-[#DFF7F5] border-[#1E1B2E]');
+            return `
+              <div class="flex ${isMine ? 'justify-end' : 'justify-start'}">
+                <div class="max-w-[82%] sm:max-w-[72%]">
+                  <div class="text-[10px] font-black text-slate-600 mb-0.5 ${isMine ? 'text-right' : 'text-left'}">
+                    ${sender.avatar} ${escapeHtml(sender.name)} · ${m.time}
+                  </div>
+                  <div class="px-3.5 py-2 rounded-2xl border-2 text-sm font-bold shadow-[2px_2px_0px_#1E1B2E] break-words ${bubbleColor}">
+                    ${escapeHtml(m.text)}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+          chatLogEl.scrollTop = chatLogEl.scrollHeight;
+        }
+
+        const modeChatBtn = document.getElementById('btn-mode-chat');
+        const modeGuessBtn = document.getElementById('btn-mode-guess');
+        const chatInput = document.getElementById('chat-input');
+        const sendBtn = document.getElementById('btn-chat-send');
+        if (modeChatBtn && modeGuessBtn && chatInput && sendBtn) {
+          const isGuess = state.chatMode === 'guess';
+          modeChatBtn.className = `px-2.5 py-1.5 rounded-lg text-xs font-black transition ${!isGuess ? 'bg-[#1E1B2E] text-white' : 'text-slate-600 hover:bg-slate-200'}`;
+          modeGuessBtn.className = `px-2.5 py-1.5 rounded-lg text-xs font-black transition ${isGuess ? 'bg-[#FF5E6C] text-white' : 'text-slate-600 hover:bg-slate-200'}`;
+          chatInput.placeholder = isGuess
+            ? `${curr.name}님의 이마 위 정답을 입력하세요!`
+            : `${curr.name}님으로 채팅 입력... (드래그로 주변 둘러보기)`;
+          sendBtn.textContent = isGuess ? '정답 외치기!' : '전송';
+          sendBtn.className = `px-4 py-2.5 rounded-xl font-black text-sm btn-pop shrink-0 ${isGuess ? 'bg-[#FF5E6C] text-white' : 'bg-[#FFB703] text-[#1E1B2E]'}`;
+        }
+      }
+
+      function renderPlay() {
+        const isOnline = state.playMode === 'online';
+        const myIdx = isOnline ? state.online.myIdx : state.currentTurn;
+        const curr = state.players[myIdx];
+
+        appRoot.innerHTML = `
+          <div class="card-pop overflow-hidden bg-white flex flex-col" style="height: calc(100vh - 5.5rem); min-height: 540px; max-height: 820px;">
+            <!-- Top 3D Viewport -->
+            <div class="relative flex-1 min-h-[270px] bg-[#F6EAD7] border-b-2 border-[#1E1B2E]">
+              <div id="three-stage" class="w-full h-full"></div>
+
+              <!-- Floating HUD on 3D Viewport -->
+              <div id="play-hud" class="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-between gap-2 pointer-events-auto"></div>
+
+              <div class="absolute bottom-2.5 right-3 px-2.5 py-1 rounded-full bg-white/80 border border-[#1E1B2E]/30 text-[11px] font-bold text-slate-700 pointer-events-none">
+                👆 화면 드래그로 1인칭 시점 이동
+              </div>
+            </div>
+
+            <!-- Bottom Chat-Only Panel -->
+            <div class="h-[240px] sm:h-[260px] bg-[#FFFBF2] flex flex-col">
+              <div id="chat-log-list" class="flex-1 overflow-y-auto scrollbar-thin px-3 sm:px-4 py-3 space-y-2.5"></div>
+
+              <div class="px-3 sm:px-4 pb-3 pt-2 bg-white border-t-2 border-[#1E1B2E] space-y-2">
+                <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-thin pb-0.5">
+                  ${QUICK_CHAT_CHIPS.map(c => `
+                    <button type="button" data-quick-chat="${escapeHtml(c.text)}" class="shrink-0 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-amber-100 border border-[#1E1B2E]/25 text-xs font-bold transition">
+                      ${c.label}
+                    </button>
+                  `).join('')}
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <div class="flex bg-slate-100 p-0.5 rounded-xl border-2 border-[#1E1B2E] shrink-0">
+                    <button id="btn-mode-chat" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-black">💬 채팅</button>
+                    <button id="btn-mode-guess" type="button" class="px-2.5 py-1.5 rounded-lg text-xs font-black">🎯 정답</button>
+                  </div>
+                  <input id="chat-input" type="text" maxlength="80" value="${escapeHtml(state.chatDraft)}" placeholder="${escapeHtml(curr.name)}님으로 채팅 입력..." class="flex-1 min-w-0 px-3.5 py-2 rounded-xl bg-white border-2 border-[#1E1B2E] text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-400" />
+                  <button id="btn-chat-send" type="button" class="px-4 py-2 rounded-xl bg-[#FFB703] font-black text-sm btn-pop shrink-0">전송</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        const stageEl = document.getElementById('three-stage');
+        ThreeStage.mount(stageEl);
+        renderPlayHUDAndChat();
+
+        const chatInput = document.getElementById('chat-input');
+        chatInput.addEventListener('input', (e) => {
+          state.chatDraft = e.target.value;
+        });
+        chatInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.isComposing) {
+            e.preventDefault();
+            handleChatSubmit();
+          }
+        });
+
+        document.getElementById('btn-chat-send').addEventListener('click', handleChatSubmit);
+
+        document.getElementById('btn-mode-chat').addEventListener('click', () => {
+          Sound.click();
+          state.chatMode = 'chat';
+          renderPlayHUDAndChat();
+          chatInput.focus();
+        });
+        document.getElementById('btn-mode-guess').addEventListener('click', () => {
+          Sound.click();
+          state.chatMode = 'guess';
+          renderPlayHUDAndChat();
+          chatInput.focus();
+        });
+
+        appRoot.querySelectorAll('[data-quick-chat]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.chatMode = 'chat';
+            state.chatDraft = btn.dataset.quickChat;
+            handleChatSubmit();
+          });
+        });
+      }
+
+      // --- SCREEN 4: RESULT ---
+      function renderResult() {
+        ThreeStage.dispose();
+        const winner = state.players[state.winner];
+        const cat = getCurrentCategoryInfo();
+        const isOnlineGuest = state.playMode === 'online' && state.online.role === 'guest';
+
+        appRoot.innerHTML = `
+          <div class="max-w-3xl mx-auto space-y-5">
+            <section class="card-pop p-6 sm:p-8 text-center bg-gradient-to-b from-[#FFF3B0] to-white">
+              <div class="text-5xl mb-2">🎉🏆🎉</div>
+              <h1 class="text-2xl sm:text-4xl font-black mb-1">
+                ${escapeHtml(winner.name)}님 정답 승리!
+              </h1>
+              <p class="text-sm sm:text-base font-bold text-slate-600 mb-5">
+                주제 [${cat.emoji} ${escapeHtml(cat.name)}] · 총 ${state.turnCount}번의 대화 만에 맞췄어요!
+              </p>
+
+              <div class="inline-flex items-center gap-3 px-5 py-2.5 rounded-2xl bg-white border-2 border-[#1E1B2E] shadow-[3px_3px_0px_#1E1B2E] text-base sm:text-lg font-black mb-6">
+                <span>${state.players[0].avatar} ${escapeHtml(state.players[0].name)}</span>
+                <span class="text-[#FF5E6C] text-2xl">${state.players[0].score}</span>
+                <span class="text-slate-400">:</span>
+                <span class="text-[#20B2AA] text-2xl">${state.players[1].score}</span>
+                <span>${escapeHtml(state.players[1].name)} ${state.players[1].avatar}</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left mb-6">
+                ${renderHeadbandAvatar(state.players[0], { showWord: true, isWinner: state.winner === 0 })}
+                ${renderHeadbandAvatar(state.players[1], { showWord: true, isWinner: state.winner === 1 })}
+              </div>
+
+              ${isOnlineGuest ? `
+                <div class="p-4 rounded-2xl bg-amber-50 border-2 border-[#1E1B2E] font-bold text-sm text-slate-700 mb-3">
+                  ⏳ 방장이 다음 라운드를 시작하길 기다리는 중...
+                </div>
+                <button id="btn-change-topic" type="button" class="w-full py-3.5 rounded-2xl bg-white hover:bg-slate-100 font-black text-base btn-pop">
+                  🚪 방 나가기
+                </button>
+              ` : `
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button id="btn-next-round" type="button" class="py-4 rounded-2xl bg-[#FF5E6C] hover:bg-[#ff4b5b] text-white font-black text-base sm:text-lg btn-pop">
+                    🔁 같은 주제로 다음 라운드!
+                  </button>
+                  <button id="btn-change-topic" type="button" class="py-4 rounded-2xl bg-white hover:bg-slate-100 font-black text-base sm:text-lg btn-pop">
+                    🗂️ 다른 주제 고르기
+                  </button>
+                </div>
+              `}
+            </section>
+          </div>
+        `;
+
+        const nextBtn = document.getElementById('btn-next-round');
+        if (nextBtn) {
+          nextBtn.addEventListener('click', () => startNewRound(true));
+        }
+        document.getElementById('btn-change-topic').addEventListener('click', () => {
+          Sound.click();
+          clearTurnTimer();
+          Net.cleanup();
+          state.screen = 'setup';
+          render();
+        });
+      }
+
+      // ==========================================
+      // 9. MASTER RENDER & GLOBAL LISTENERS
+      // ==========================================
+      function render() {
+        if (state.screen === 'setup') renderSetup();
+        else if (state.screen === 'lobby') renderLobby();
+        else if (state.screen === 'handoff') renderHandoff();
+        else if (state.screen === 'play') renderPlay();
+        else if (state.screen === 'result') renderResult();
+      }
+
+      document.getElementById('btn-rules').addEventListener('click', openRulesModal);
+
+      btnMute.addEventListener('click', () => {
+        Sound.muted = !Sound.muted;
+        btnMute.textContent = Sound.muted ? '🔇' : '🔊';
+        if (!Sound.muted) Sound.click();
+        showToast(Sound.muted ? '효과음을 껐어요.' : '효과음을 켰어요!', 'dark');
+      });
+
+      document.getElementById('btn-logo-home').addEventListener('click', () => {
+        if (state.screen === 'setup') return;
+        Sound.click();
+        modalRoot.innerHTML = `
+          <div class="card-pop max-w-sm w-full p-6 bg-white text-center">
+            <div class="text-3xl mb-2">🏠</div>
+            <h2 class="text-lg font-black mb-1">처음 화면으로 돌아갈까요?</h2>
+            <p class="text-sm text-slate-600 mb-5">현재 진행 중인 방/라운드가 종료되고 설정 화면으로 이동합니다.</p>
+            <div class="grid grid-cols-2 gap-3">
+              <button id="home-cancel" type="button" class="py-2.5 rounded-xl bg-slate-100 font-bold btn-pop">계속하기</button>
+              <button id="home-confirm" type="button" class="py-2.5 rounded-xl bg-[#FF5E6C] text-white font-black btn-pop">처음으로</button>
+            </div>
+          </div>
+        `;
+        modalRoot.classList.remove('hidden');
+        document.getElementById('home-cancel').addEventListener('click', closeModal);
+        document.getElementById('home-confirm').addEventListener('click', () => {
+          closeModal();
+          clearTurnTimer();
+          ThreeStage.dispose();
+          Net.cleanup();
+          state.screen = 'setup';
+          render();
+        });
+      });
+
+      modalRoot.addEventListener('click', (e) => {
+        if (e.target === modalRoot) closeModal();
+      });
+
+      window.addEventListener('load', () => {
+        render();
+      });
+      render();
+    })();
+  </script>
+</body>
+</html>
